@@ -17,11 +17,12 @@ const colors = [
 ];
 
 class Square {
-    constructor(x, y, color, status) {
+    constructor(x, y, color, status, center) {
       this.x = x;
       this.y = y;
       this.color = color;
       this.status = status;
+      this.center = center
     }
 };
 
@@ -32,7 +33,7 @@ function randomFromArr(arr) {
 const rowLength = 8;
 const columnLength = 12;
 const row = new Array(rowLength).fill(null);
-const field = new Array(columnLength).fill(null).map(i => row.slice());
+let field = new Array(columnLength).fill(null).map(i => row.slice());
 
 
 const cellSize = 50;
@@ -50,24 +51,24 @@ function redraw() {
 }
 
 function redrawFigure(figure) {
-  figure.forEach(square => field[square.y][square.x] = new Square(square.x, square.y, square.color, 'moving'));
+  figure.forEach(square => field[square.y][square.x] = new Square(square.x, square.y, square.color, 'moving', square.center));
   redraw();
 }
 
 figures = [
-  [{x: 3, y: 0}, {x: 4, y: 0}, {x: 5, y: 0}, {x: 4, y: 1}],
-  [{x: 4, y: 0}, {x: 4, y: 1}, {x: 4, y: 2}, {x: 4, y: 3}],
-  [{x: 3, y: 0}, {x: 4, y: 0}, {x: 5, y: 0}, {x: 5, y: 1}],
-  [{x: 3, y: 0}, {x: 3, y: 1}, {x: 4, y: 0}, {x: 5, y: 0}],
-  [{x: 3, y: 0}, {x: 4, y: 0}, {x: 4, y: 1}, {x: 5, y: 1}],
-  [{x: 3, y: 1}, {x: 4, y: 0}, {x: 4, y: 1}, {x: 5, y: 0}],
+  [{x: 3, y: 0}, {x: 4, y: 0, center: 3}, {x: 5, y: 0}, {x: 4, y: 1}],
+  // [{x: 4, y: 0}, {x: 4, y: 1}, {x: 4, y: 2}, {x: 4, y: 3}],
+  [{x: 3, y: 0}, {x: 4, y: 0, center: 3}, {x: 5, y: 0}, {x: 5, y: 1}],
+  [{x: 3, y: 0}, {x: 3, y: 1}, {x: 4, y: 0, center: 3}, {x: 5, y: 0}],
+  [{x: 3, y: 0}, {x: 4, y: 0, center: 3}, {x: 4, y: 1}, {x: 5, y: 1}],
+  [{x: 3, y: 1}, {x: 4, y: 0, center: 3}, {x: 4, y: 1}, {x: 5, y: 0}],
   [{x: 3, y: 0}, {x: 3, y: 1}, {x: 4, y: 0}, {x: 4, y: 1}],
 ]
 
 function spawnFigure() {
   const figure = randomFromArr(figures);
   const color = randomFromArr(colors)
-  figure.forEach(coord => field[coord.y][coord.x] = new Square(coord.x, coord.y, color, 'moving'));
+  figure.forEach(coord => field[coord.y][coord.x] = new Square(coord.x, coord.y, color, 'moving', coord.center));
   redraw();
 }
 
@@ -89,7 +90,10 @@ function moveFigure(yShift, xShift) {
   let place = () => {
     field.forEach(row =>  {
       row.filter(square => square && square.status === 'moving')
-        .forEach(square => square.status = 'static')
+        .forEach(square => {
+          square.status = 'static';
+          square.center = null;
+        });
     })
     spawnFigure();
   }
@@ -122,28 +126,87 @@ document.addEventListener('keydown', key => {
   if (key.code === 'KeyA') {
     moveFigure(0, -1);
   } else if (key.code === 'KeyD') {
-    moveFigure(0, 1)
+    moveFigure(0, 1);
   } else if (key.code === 'KeyS') {
-    moveFigure(1, 0)
+    moveFigure(1, 0);
+  } else if (key.code === 'KeyE') {
+    rotate();
   }
 });
 
+function rotate() {
+  let centerSquare;
+  field.forEach(row => {
+    const found = row.find(square => square && square.center);
+    if (found) {
+      centerSquare = found;
+    }
+  })
+  if (!centerSquare) {
+    return;
+  }
 
-// rotate
-const reverse = array => [...array].reverse();
-const compose = (a, b) => x => a(b(x));
+  let centerX = centerSquare.x;
+  let centerY = centerSquare.y;
 
-const flipMatrix = matrix => (
-  matrix[0].map((column, index) => (
-    matrix.map(row => row[index])
-  ))
-);
+  if (centerY < 1 || centerY + 1 >= columnLength
+    || centerX < 1 || centerX + 1 >= rowLength) {
+    return;
+  }
 
-const rotateMatrix = compose(flipMatrix, reverse);
-const flipMatrixCounterClockwise = compose(reverse, rotateMatrix);
-const rotateMatrixCounterClockwise = compose(reverse, flipMatrix);
-// ===========
+  const matrix = [];
+  index = 0;
+  for (let i = centerY - 1; i < centerY + 2; i++) {
+    matrix[index] = field[i]
+      .filter((square, i) => i >= centerX -1 && i <= centerX + 1)
+      .map(square => square && square.status === 'static' ? null : square);
+    index++;
+  }
+
+  newCoords = [];
+
+  for (let i = 0; i < centerSquare.center; ++i) {
+    for (let j = 0; j < centerSquare.center; ++j) {
+      let item;
+      const found = matrix[i][j]
+      if (found) {
+        item = Object.assign({}, found);
+
+        let shiftX;
+        if (j >= 1) {
+          shiftX = 2 - i - j;
+        } else {
+          shiftX = i - j;
+          if (i > 1) {
+            shiftX = 0;
+          } else if (i === 0) {
+            shiftX = 2;
+          }
+        }
+
+        const shiftY = j - i;
+
+        if (!item.center) {
+          item.y = item.y + shiftY;
+          item.x = item.x + shiftX;
+        }
+        newCoords.push(item);
+      }
+    }
+  }
+
+  if (newCoords.some(i => field[i.y][i.x] && field[i.y][i.x].status === 'static')) {
+    return;
+  }
+
+  matrix.forEach(row => row.forEach(square => {
+    if (square) {
+      field[square.y][square.x] = null;
+    }
+  }))
+  redrawFigure(newCoords);
+}
 
 spawnFigure();
 
-// setInterval(() => moveFigure(1, 0), 1000);
+setInterval(() => moveFigure(1, 0), 700);
