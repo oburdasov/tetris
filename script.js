@@ -1,6 +1,6 @@
 const canvas = document.getElementById('canvas');
 canvas.width  = 400;
-canvas.height = 600;
+canvas.height = 800;
 
 var ctx = canvas.getContext("2d");
 const colors = [
@@ -30,13 +30,46 @@ function randomFromArr(arr) {
  return arr[Math.floor(Math.random() * arr.length)];
 }
 
-const rowLength = 8;
-const columnLength = 12;
-const row = new Array(rowLength).fill(null);
-let field = new Array(columnLength).fill(null).map(i => row.slice());
+figures = [
+  [{x: 4, y: 0}, {x: 5, y: 0, center: 3}, {x: 6, y: 0}, {x: 5, y: 1}],
+  [{x: 5, y: 0, center: 'bar'}, {x: 5, y: 1}, {x: 5, y: 2}, {x: 5, y: 3}],
+  [{x: 4, y: 0}, {x: 5, y: 0, center: 3}, {x: 6, y: 0}, {x: 6, y: 1}],
+  [{x: 4, y: 0}, {x: 4, y: 1}, {x: 5, y: 0, center: 3}, {x: 6, y: 0}],
+  [{x: 4, y: 0}, {x: 5, y: 0, center: 3}, {x: 5, y: 1}, {x: 6, y: 1}],
+  [{x: 4, y: 1}, {x: 5, y: 0, center: 3}, {x: 5, y: 1}, {x: 6, y: 0}],
+  [{x: 4, y: 0}, {x: 4, y: 1}, {x: 5, y: 0}, {x: 5, y: 1}],
+];
 
+const rowLength = 10;
+const columnLength = 20;
+const cellSize = 40;
+let field
+let timer;
 
-const cellSize = 50;
+function init() {
+  const newRow = new Array(rowLength).fill(null);
+  field = new Array(columnLength).fill(null).map(i => newRow.slice());
+  spawnFigure();
+  clearInterval(timer);
+  timer = setInterval(() => moveFigure(1, 0), 500);
+}
+
+init();
+
+document.addEventListener('keydown', key => {
+  if (key.code === 'KeyA') {
+    moveFigure(0, -1);
+  } else if (key.code === 'KeyD') {
+    moveFigure(0, 1);
+  } else if (key.code === 'KeyS') {
+    moveFigure(1, 0);
+  } else if (key.code === 'KeyE') {
+    rotate();
+  } else if (key.code === 'KeyR') {
+    init();
+  }
+});
+
 function redraw() {
   ctx.fillStyle = '#000'
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -46,6 +79,7 @@ function redraw() {
       .forEach(square => {
         ctx.fillStyle = square.color;
         ctx.fillRect(cellSize * square.x, cellSize * square.y, cellSize, cellSize);
+        ctx.strokeRect(cellSize * square.x, cellSize * square.y, cellSize, cellSize);
     })
   })
 }
@@ -55,21 +89,14 @@ function redrawFigure(figure) {
   redraw();
 }
 
-figures = [
-  [{x: 3, y: 0}, {x: 4, y: 0, center: 3}, {x: 5, y: 0}, {x: 4, y: 1}],
-  // [{x: 4, y: 0}, {x: 4, y: 1}, {x: 4, y: 2}, {x: 4, y: 3}],
-  [{x: 3, y: 0}, {x: 4, y: 0, center: 3}, {x: 5, y: 0}, {x: 5, y: 1}],
-  [{x: 3, y: 0}, {x: 3, y: 1}, {x: 4, y: 0, center: 3}, {x: 5, y: 0}],
-  [{x: 3, y: 0}, {x: 4, y: 0, center: 3}, {x: 4, y: 1}, {x: 5, y: 1}],
-  [{x: 3, y: 1}, {x: 4, y: 0, center: 3}, {x: 4, y: 1}, {x: 5, y: 0}],
-  [{x: 3, y: 0}, {x: 3, y: 1}, {x: 4, y: 0}, {x: 4, y: 1}],
-]
 
 function spawnFigure() {
   const figure = randomFromArr(figures);
   const color = randomFromArr(colors)
+  this.canvas.style.borderColor = color;
   figure.forEach(coord => field[coord.y][coord.x] = new Square(coord.x, coord.y, color, 'moving', coord.center));
   redraw();
+  
 }
 
 function moveFigure(yShift, xShift) {
@@ -95,6 +122,17 @@ function moveFigure(yShift, xShift) {
           square.center = null;
         });
     })
+
+    field.forEach((row, rowIndex) => {
+      if (row.every(square => square && square.status === 'static')) {
+        field.splice(rowIndex, 1);
+        for (let i = 0; i < rowIndex; i++) {
+          field[i].forEach(square => square && square.y++)
+        }
+        field.unshift(new Array(rowLength).fill(null));
+      }
+    })
+
     spawnFigure();
   }
 
@@ -117,22 +155,10 @@ function moveFigure(yShift, xShift) {
     return;
   }
 
-  if (!newCoords.some(i => i.x > 7 || i.x < 0)) {
+  if (!newCoords.some(i => i.x >= rowLength || i.x < 0)) {
     move()
   }
 }
-
-document.addEventListener('keydown', key => {
-  if (key.code === 'KeyA') {
-    moveFigure(0, -1);
-  } else if (key.code === 'KeyD') {
-    moveFigure(0, 1);
-  } else if (key.code === 'KeyS') {
-    moveFigure(1, 0);
-  } else if (key.code === 'KeyE') {
-    rotate();
-  }
-});
 
 function rotate() {
   let centerSquare;
@@ -143,6 +169,11 @@ function rotate() {
     }
   })
   if (!centerSquare) {
+    return;
+  }
+
+  if (centerSquare.center === 'bar') {
+    rotateBar(centerSquare);
     return;
   }
 
@@ -207,6 +238,5 @@ function rotate() {
   redrawFigure(newCoords);
 }
 
-spawnFigure();
-
-setInterval(() => moveFigure(1, 0), 700);
+function rotateBar(barStart) {
+}
